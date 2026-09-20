@@ -1,12 +1,15 @@
 #include <Arduino.h>
 #include <esp_now.h>
 #include <WiFi.h>
+#include <esp_wifi.h>
 
 #define MSG_FREE 0
 #define MSG_BUSY 1
 
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len);
+uint16_t calculate_16_bit_checksum(const uint8_t *data, size_t length);
+void set_hardware_wifi_channel(uint8_t channel);
 
 // Replace with your receiver's MAC address
 uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -49,6 +52,7 @@ void setup()
   }
 
   WiFi.mode(WIFI_STA);
+  set_hardware_wifi_channel(CHANNEL);
 
   // Initialize ESP-NOW
   if (esp_now_init() != ESP_OK)
@@ -115,4 +119,11 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   Serial.println(msg[0].result);
   Serial.printf("Status: %i\n", msg[0].status);
   Serial.printf("Checksum: %04X\n", msg[0].checksum);
+}
+
+void set_hardware_wifi_channel(uint8_t channel)
+{
+  esp_wifi_set_promiscuous(true);
+  esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
+  esp_wifi_set_promiscuous(false);
 }
