@@ -6,6 +6,8 @@
 #define MSG_FREE 0
 #define MSG_BUSY 1
 
+#define LED 8
+
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len);
 uint16_t calculate_16_bit_checksum(const uint8_t *data, size_t length);
@@ -33,8 +35,12 @@ typedef struct now_msg
 #define MSG_COUNT 64
 now_msg msg[MSG_COUNT];
 
+bool ledState = false;
+
 void setup()
 {
+  pinMode(LED, OUTPUT);
+  digitalWrite(LED, ledState);
 
   Serial.begin(115200);
 
@@ -63,24 +69,33 @@ void setup()
 
   // Register the send callback
   esp_now_register_send_cb(OnDataSent);
-  esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecv));
+  esp_err_t esp_err_t_register_recv = esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecv));
+  if (esp_err_t_register_recv != ESP_OK)
+  {
+    Serial.println("Error registering receive callback");
+    return;
+  }
 
+  /*
   // Register peer
   esp_now_peer_info_t peerInfo = {};
-  memcpy(peerInfo.peer_addr, broadcastAddress, 6);
   peerInfo.channel = CHANNEL;
   peerInfo.encrypt = false;
+  memcpy(peerInfo.peer_addr, broadcastAddress, 6);
+
   if (esp_now_add_peer(&peerInfo) != ESP_OK)
   {
     Serial.println("Failed to add peer");
     return;
   }
-
+*/
   Serial.println("ESP-NOW Initialized!");
 }
 
 void loop()
 {
+  Serial.println("Looping...");
+  delay(1000);
 }
 
 // Calculates a 16-bit checksum by summing all bytes in the buffer.
@@ -103,6 +118,11 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
 
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
 {
+
+  // Toggle the LED state
+  ledState = !ledState;
+  digitalWrite(LED, ledState);
+
   // Copy incoming memory buffer directly into our structure variables
   memcpy(&msg[0], incomingData, sizeof(now_msg));
 
