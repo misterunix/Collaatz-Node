@@ -21,7 +21,7 @@ uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 typedef struct now_msg
 {
   uint8_t othermax[6];
-  uint8_t mynode;
+  uint8_t senderNode;
   uint8_t othernode;
   uint8_t control;
   uint8_t sequence;
@@ -54,7 +54,7 @@ void setup()
     msg[i].startnumber = 0ULL;
     msg[i].control = 0;
     msg[i].othernode = 255;
-    msg[i].mynode = 0; // 0 is Always the server
+    msg[i].senderNode = 255; // 0 is Always the server
   }
 
   WiFi.mode(WIFI_STA);
@@ -67,16 +67,7 @@ void setup()
     return;
   }
 
-  // Register the send callback
-  esp_now_register_send_cb(OnDataSent);
-  esp_err_t esp_err_t_register_recv = esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecv));
-  if (esp_err_t_register_recv != ESP_OK)
-  {
-    Serial.println("Error registering receive callback");
-    return;
-  }
 
-  /*
   // Register peer
   esp_now_peer_info_t peerInfo = {};
   peerInfo.channel = CHANNEL;
@@ -88,13 +79,27 @@ void setup()
     Serial.println("Failed to add peer");
     return;
   }
-*/
+
+
+
+
+  // Register the send callback
+  esp_now_register_send_cb(OnDataSent);
+  esp_err_t esp_err_t_register_recv = esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecv));
+  if (esp_err_t_register_recv != ESP_OK)
+  {
+    Serial.println("Error registering receive callback");
+    return;
+  }
+
+  
+
   Serial.println("ESP-NOW Initialized!");
 }
 
 void loop()
 {
-  Serial.println("Looping...");
+ // Serial.println("Looping...");
   delay(1000);
 }
 
@@ -131,7 +136,7 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   Serial.printf("Rcv: %02X:%02X:%02X:%02X:%02X:%02X\n", msg[0].othermax[0],
                 msg[0].othermax[1], msg[0].othermax[2], msg[0].othermax[3],
                 msg[0].othermax[4], msg[0].othermax[5]);
-  Serial.printf("Other node: %i\n", msg[0].othernode);
+  Serial.printf("Other node: %i\n", msg[0].senderNode);
   Serial.printf("Control: %i\n", msg[0].control);
   Serial.printf("Sequence: %i\n", msg[0].sequence);
   Serial.println(msg[0].startnumber);
@@ -139,6 +144,18 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   Serial.println(msg[0].result);
   Serial.printf("Status: %i\n", msg[0].status);
   Serial.printf("Checksum: %04X\n", msg[0].checksum);
+    uint16_t tmp_checksum = msg[0].checksum;
+  msg[0].checksum = 0;
+  uint16_t checksum = calculate_16_bit_checksum((const uint8_t *)&msg[0], sizeof(now_msg));
+  Serial.printf("Calculated Checksum: %04X\n", checksum);
+  if (checksum == tmp_checksum)
+  {
+    Serial.println("Checksum valid");
+  }
+  else
+  {
+    Serial.println("Checksum invalid");
+  }
 }
 
 void set_hardware_wifi_channel(uint8_t channel)
