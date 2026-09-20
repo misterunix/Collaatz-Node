@@ -4,4 +4,4 @@
 .vscode/launch.json
 .vscode/ipch
 !*.md
-platformio.ini
+!platformio.ini
