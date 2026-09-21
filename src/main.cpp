@@ -141,16 +141,16 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
 
   Serial.println("\n--- New Packet Received ---");
 
-  Serial.printf("Rcv: %02X:%02X:%02X:%02X:%02X:%02X\n", msg[0].otherMAC[0],
+  Serial.printf("Rcv: %02X:%02X:%02X:%02X:%02X:%02X ", msg[0].otherMAC[0],
                 msg[0].otherMAC[1], msg[0].otherMAC[2], msg[0].otherMAC[3],
                 msg[0].otherMAC[4], msg[0].otherMAC[5]);
-  Serial.printf("Other node: %i\n", msg[0].senderNode);
-  Serial.printf("Control: %i\n", msg[0].control);
-  Serial.printf("Sequence: %i\n", msg[0].sequence);
+  Serial.printf("Other node: %i ", msg[0].senderNode);
+  Serial.printf("Control: %i ", msg[0].control);
+  Serial.printf("Sequence: %i ", msg[0].sequence);
   Serial.println(msg[0].startnumber);
   Serial.println(msg[0].length);
   Serial.println(msg[0].result);
-  Serial.printf("Status: %i\n", msg[0].status);
+  Serial.printf("Status: %i ", msg[0].status);
   Serial.printf("Checksum: %04X\n", msg[0].checksum);
   uint16_t tmp_checksum = msg[0].checksum;
   msg[0].checksum = 0;
@@ -198,12 +198,15 @@ void pong(uint8_t i)
   {
     return;
   }
+  memcpy(msg[i].otherMAC, baseMac, 6);
+  /*
   msg[i].otherMAC[0] = baseMac[0];
   msg[i].otherMAC[1] = baseMac[1];
   msg[i].otherMAC[2] = baseMac[2];
   msg[i].otherMAC[3] = baseMac[3];
   msg[i].otherMAC[4] = baseMac[4];
   msg[i].otherMAC[5] = baseMac[5];
+  */
   msg[i].status = MSG_FREE;
   msg[i].sequence = 0;
   msg[i].checksum = 0;
