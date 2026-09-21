@@ -124,9 +124,7 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
 {
 
-  // Toggle the LED state
-  ledState = !ledState;
-  digitalWrite(LED, ledState);
+
 
   // Copy incoming memory buffer directly into our structure variables
   memcpy(&msg[0], incomingData, sizeof(now_msg));
@@ -150,6 +148,9 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   Serial.printf("Calculated Checksum: %04X\n", checksum);
   if (checksum == tmp_checksum)
   {
+      // Toggle the LED state
+  ledState = !ledState;
+  digitalWrite(LED, ledState);
     Serial.println("Checksum valid");
   }
   else
