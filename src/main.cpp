@@ -12,17 +12,25 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len);
 uint16_t calculate_16_bit_checksum(const uint8_t *data, size_t length);
 void set_hardware_wifi_channel(uint8_t channel);
+void pong(uint8_t i);
 
 // Replace with your receiver's MAC address
-uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-
+uint8_t broadcastAddress[] = {0xFF,
+                              0xFF,
+                              0xFF,
+                              0xFF,
+                              0xFF,
+                              0xFF};
+esp_now_peer_info_t peerInfo;
 #define CHANNEL 3
+
+uint8_t baseMac[6];
 
 typedef struct now_msg
 {
-  uint8_t othermax[6];
+  uint8_t otherMAC[6];
   uint8_t senderNode;
-  uint8_t othernode;
+  uint8_t recvNodeID;
   uint8_t control;
   uint8_t sequence;
   unsigned long long startnumber;
@@ -53,12 +61,22 @@ void setup()
     msg[i].result = 0ULL;
     msg[i].startnumber = 0ULL;
     msg[i].control = 0;
-    msg[i].othernode = 255;
+    msg[i].recvNodeID = 255;
     msg[i].senderNode = 255; // 0 is Always the server
   }
 
   WiFi.mode(WIFI_STA);
   set_hardware_wifi_channel(CHANNEL);
+
+  esp_read_mac(baseMac, ESP_MAC_WIFI_STA);
+  Serial.print("Base MAC: ");
+  for (int i = 0; i < 6; i++)
+  {
+    Serial.printf("%02X", baseMac[i]);
+    if (i < 5)
+      Serial.print(":");
+  }
+  Serial.println();
 
   // Initialize ESP-NOW
   if (esp_now_init() != ESP_OK)
@@ -67,9 +85,8 @@ void setup()
     return;
   }
 
-
   // Register peer
-  esp_now_peer_info_t peerInfo = {};
+
   peerInfo.channel = CHANNEL;
   peerInfo.encrypt = false;
   memcpy(peerInfo.peer_addr, broadcastAddress, 6);
@@ -80,9 +97,6 @@ void setup()
     return;
   }
 
-
-
-
   // Register the send callback
   esp_now_register_send_cb(OnDataSent);
   esp_err_t esp_err_t_register_recv = esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecv));
@@ -92,14 +106,12 @@ void setup()
     return;
   }
 
-  
-
   Serial.println("ESP-NOW Initialized!");
 }
 
 void loop()
 {
- // Serial.println("Looping...");
+  // Serial.println("Looping...");
   delay(1000);
 }
 
@@ -124,16 +136,14 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
 {
 
-
-
   // Copy incoming memory buffer directly into our structure variables
   memcpy(&msg[0], incomingData, sizeof(now_msg));
 
   Serial.println("\n--- New Packet Received ---");
 
-  Serial.printf("Rcv: %02X:%02X:%02X:%02X:%02X:%02X\n", msg[0].othermax[0],
-                msg[0].othermax[1], msg[0].othermax[2], msg[0].othermax[3],
-                msg[0].othermax[4], msg[0].othermax[5]);
+  Serial.printf("Rcv: %02X:%02X:%02X:%02X:%02X:%02X\n", msg[0].otherMAC[0],
+                msg[0].otherMAC[1], msg[0].otherMAC[2], msg[0].otherMAC[3],
+                msg[0].otherMAC[4], msg[0].otherMAC[5]);
   Serial.printf("Other node: %i\n", msg[0].senderNode);
   Serial.printf("Control: %i\n", msg[0].control);
   Serial.printf("Sequence: %i\n", msg[0].sequence);
@@ -142,20 +152,34 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   Serial.println(msg[0].result);
   Serial.printf("Status: %i\n", msg[0].status);
   Serial.printf("Checksum: %04X\n", msg[0].checksum);
-    uint16_t tmp_checksum = msg[0].checksum;
+  uint16_t tmp_checksum = msg[0].checksum;
   msg[0].checksum = 0;
   uint16_t checksum = calculate_16_bit_checksum((const uint8_t *)&msg[0], sizeof(now_msg));
   Serial.printf("Calculated Checksum: %04X\n", checksum);
-  if (checksum == tmp_checksum)
-  {
-      // Toggle the LED state
-  ledState = !ledState;
-  digitalWrite(LED, ledState);
-    Serial.println("Checksum valid");
-  }
-  else
+  if (checksum != tmp_checksum)
   {
     Serial.println("Checksum invalid");
+    return;
+  }
+  // Toggle the LED state
+  ledState = !ledState;
+  digitalWrite(LED, ledState);
+  Serial.println("Checksum valid");
+
+  if (msg[0].senderNode != 0)
+  {
+    Serial.println("Non-zero sender node detected");
+    return;
+  }
+
+  switch (msg[0].control)
+  {
+  case 1:
+    pong(uint8_t(2));
+    break;
+  default:
+    Serial.println("Unknown control command");
+    break;
   }
 }
 
@@ -164,4 +188,42 @@ void set_hardware_wifi_channel(uint8_t channel)
   esp_wifi_set_promiscuous(true);
   esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
   esp_wifi_set_promiscuous(false);
+}
+
+void pong(uint8_t i)
+{
+  delay(random(100, 1000));
+
+  if (i > 254 || i == 0)
+  {
+    return;
+  }
+  msg[i].otherMAC[0] = baseMac[0];
+  msg[i].otherMAC[1] = baseMac[1];
+  msg[i].otherMAC[2] = baseMac[2];
+  msg[i].otherMAC[3] = baseMac[3];
+  msg[i].otherMAC[4] = baseMac[4];
+  msg[i].otherMAC[5] = baseMac[5];
+  msg[i].status = MSG_FREE;
+  msg[i].sequence = 0;
+  msg[i].checksum = 0;
+  msg[i].length = 10000000ULL;
+  msg[i].result = 0ULL;
+  msg[i].startnumber = 0ULL;
+  msg[i].control = 2;
+  msg[i].recvNodeID = 0;
+  msg[i].senderNode = 1; // 0 is Always the server
+  msg[i].checksum = 0;
+  uint16_t checksum = calculate_16_bit_checksum((const uint8_t *)&msg[i], sizeof(now_msg));
+  msg[i].checksum = checksum;
+
+  esp_err_t result = esp_now_send(peerInfo.peer_addr, (const uint8_t *)&msg[0], sizeof(now_msg));
+  if (result == ESP_OK)
+  {
+    Serial.println("Sent with success");
+  }
+  else
+  {
+    Serial.println("Error sending the data");
+  }
 }
