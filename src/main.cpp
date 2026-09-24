@@ -28,16 +28,16 @@ uint8_t baseMac[6];
 
 typedef struct now_msg
 {
-  uint8_t otherMAC[6];
-  uint8_t senderNode;
-  uint8_t recvNodeID;
-  uint8_t control;
-  uint8_t sequence;
-  unsigned long long startnumber;
-  unsigned long long length;
-  unsigned long long result;
-  uint8_t status;
-  uint16_t checksum;
+  uint8_t otherMAC[6];            // the mac of a responding device
+  uint8_t senderNode;             // the node ID of the sender
+  uint8_t recvNodeID;             // the node ID of the responding device
+  uint8_t control;                // control flags or commands
+  uint8_t sequence;               // sequence number of the message
+  unsigned long long startnumber; // starting number for the computation
+  unsigned long long length;      // length of the computation range
+  unsigned long long result;      // result of the computation
+  uint8_t status;                 // status of the message (e.g., MSG_FREE or MSG_BUSY)
+  uint16_t checksum;              // 16-bit checksum for data integrity
 } now_msg;
 
 #define MSG_COUNT 64
@@ -140,6 +140,22 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
   memcpy(&msg[0], incomingData, sizeof(now_msg));
 
   Serial.println("\n--- New Packet Received ---");
+  uint16_t hldcrc = msg[0].checksum;
+  msg[0].checksum = calculate_16_bit_checksum((const uint8_t *)&msg[0], sizeof(now_msg));
+  if (hldcrc != msg[0].checksum)
+  {
+    // drop packet if checksum does not match
+    Serial.println("Checksum mismatch, dropping packet");
+    return;
+  }
+
+  switch (msg[0].control)
+  {
+  case 1:
+    // recv ping
+    pong(msg[0].senderNode);
+    break;
+  }
 
   Serial.printf("Rcv: %02X:%02X:%02X:%02X:%02X:%02X ", msg[0].otherMAC[0],
                 msg[0].otherMAC[1], msg[0].otherMAC[2], msg[0].otherMAC[3],
@@ -194,10 +210,12 @@ void pong(uint8_t i)
 {
   delay(random(100, 1000));
 
-  if (i > 254 || i == 0)
+  if (i != 0)
   {
+    // Not master node, ignore pong
     return;
   }
+
   memcpy(msg[i].otherMAC, baseMac, 6);
   /*
   msg[i].otherMAC[0] = baseMac[0];
